@@ -3,8 +3,10 @@ if (process.env.NODE_ENV !== 'production') {
 }
 const cluster = require("cluster");
 const http = require("http");
+const { Server } = require("socket.io");
+const redisAdapter = require("socket.io-redis");
 const numCPUs = require("os").cpus().length;
-const { setupMaster } = require("@socket.io/sticky");
+const { setupMaster, setupWorker } = require("@socket.io/sticky");
 const Monitor = require('./src/Monitor');
 
 if (cluster.isMaster) {
@@ -12,7 +14,7 @@ if (cluster.isMaster) {
   console.log(`Master ${process.pid} is running`);
 
   setupMaster(httpServer, {
-    loadBalancingMethod: "least-connection",
+    loadBalancingMethod: "least-connection", // either "random", "round-robin" or "least-connection"
   });
 
   for (let i = 0; i < numCPUs; i++) {
@@ -27,9 +29,15 @@ if (cluster.isMaster) {
   console.log(`Worker ${process.pid} started`);
 
   const port = process.env.PORT || 3000;
-  const httpServer = http.createServer();
+  const httpServer = http.createServer((req, res) => {
+    console.log(`worker on ${process.pid}`);
+    res.end(`worker on ${process.pid}`)
+  });
 
   httpServer.listen(port, () => console.log(`Listening on port ${port}`));
+  /*const io = new Server(httpServer);
+  io.adapter(redisAdapter({ host: "localhost", port: 6379 }));
+  setupWorker(io);*/
 
   const monitor = new Monitor(httpServer);
   monitor.init();
